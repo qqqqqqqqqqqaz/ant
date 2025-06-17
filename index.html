@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bot Detection Page</title>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; }
+    .warning { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Security Check</h1>
+  <div id="status">Running checks...</div>
+
+  <script>
+    (async () => {
+      const status = document.getElementById('status');
+      let suspicious = false;
+      let messages = [];
+
+      // 1. Headless browser check
+      if (navigator.webdriver) {
+        suspicious = true;
+        messages.push("Webdriver detected (likely automated browser)");
+      }
+
+      // 2. Function integrity check
+      const checkIntegrity = () => {
+        const fnToString = Function.prototype.toString;
+        const nativeAlert = fnToString.call(alert);
+        if (!nativeAlert.includes('[native code]')) {
+          suspicious = true;
+          messages.push("alert() may be overridden or spoofed");
+        }
+      };
+      checkIntegrity();
+
+      // 3. User interaction timing test
+      let userInteracted = false;
+      document.addEventListener('mousemove', () => userInteracted = true);
+      setTimeout(() => {
+        if (!userInteracted) {
+          suspicious = true;
+          messages.push("No mouse movement within 3 seconds (possible bot)");
+        }
+        report();
+      }, 3000);
+
+      // 4. Optional fingerprinting
+      const getFingerprint = () => {
+        return {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          plugins: navigator.plugins.length,
+          languages: navigator.languages
+        };
+      };
+
+      const report = () => {
+        const fingerprint = getFingerprint();
+        let result = suspicious
+          ? `<p class="warning">⚠️ Suspicious activity detected:</p><ul>${messages.map(m => `<li>${m}</li>`).join('')}</ul>`
+          : "✅ No obvious automation detected.";
+        
+        result += `<pre>${JSON.stringify(fingerprint, null, 2)}</pre>`;
+        status.innerHTML = result;
+
+        // Optionally, send to server:
+        // fetch('https://your-endpoint.com/report', {
+        //   method: 'POST',
+        //   headers: { 'Content-Type': 'application/json' },
+        //   body: JSON.stringify({ suspicious, messages, fingerprint })
+        // });
+      };
+    })();
+  </script>
+</body>
+</html>
