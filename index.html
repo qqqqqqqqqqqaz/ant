@@ -1,77 +1,66 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Bot Detection Page</title>
+  <title>Bypass & Script Detection</title>
   <style>
-    body { font-family: sans-serif; padding: 2rem; }
-    .warning { color: red; font-weight: bold; }
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .alert { color: red; font-weight: bold; }
   </style>
 </head>
 <body>
   <h1>Security Check</h1>
-  <div id="status">Running checks...</div>
+  <div id="output">Checking...</div>
 
   <script>
-    (async () => {
-      const status = document.getElementById('status');
-      let suspicious = false;
-      let messages = [];
+    (function () {
+      const output = document.getElementById('output');
+      let issues = [];
 
-      // 1. Headless browser check
-      if (navigator.webdriver) {
-        suspicious = true;
-        messages.push("Webdriver detected (likely automated browser)");
+      // --- 1. Fast Interaction Detection ---
+      let start = performance.now();
+      setTimeout(() => {
+        let elapsed = performance.now() - start;
+        if (elapsed < 5) {
+          issues.push("⚠️ Script may be speeding up execution with fast flags.");
+        }
+      }, 0);
+
+      // --- 2. Script Tampering Check ---
+      const originalSetTimeout = window.setTimeout.toString();
+      if (!originalSetTimeout.includes('[native code]')) {
+        issues.push("⚠️ setTimeout has been modified (script injection?).");
       }
 
-      // 2. Function integrity check
-      const checkIntegrity = () => {
-        const fnToString = Function.prototype.toString;
-        const nativeAlert = fnToString.call(alert);
-        if (!nativeAlert.includes('[native code]')) {
-          suspicious = true;
-          messages.push("alert() may be overridden or spoofed");
+      const originalFetch = window.fetch?.toString?.() || "";
+      if (originalFetch && !originalFetch.includes('[native code]')) {
+        issues.push("⚠️ fetch() appears to be overridden (possible hook).");
+      }
+
+      // --- 3. Inline Script Detection (via DOM) ---
+      const scripts = document.querySelectorAll("script:not([src])");
+      if (scripts.length > 1) {
+        issues.push("⚠️ Extra inline scripts detected (possible injection).");
+      }
+
+      // --- 4. DevTools Detection (Simple) ---
+      const detectDevTools = () => {
+        const before = new Date();
+        debugger;
+        const after = new Date();
+        if (after - before > 100) {
+          issues.push("⚠️ DevTools detected (debugger triggered).");
         }
       };
-      checkIntegrity();
+      detectDevTools();
 
-      // 3. User interaction timing test
-      let userInteracted = false;
-      document.addEventListener('mousemove', () => userInteracted = true);
+      // --- 5. Report Results ---
       setTimeout(() => {
-        if (!userInteracted) {
-          suspicious = true;
-          messages.push("No mouse movement within 3 seconds (possible bot)");
+        if (issues.length > 0) {
+          output.innerHTML = `<div class="alert">Suspicious Activity Detected:</div><ul>${issues.map(i => `<li>${i}</li>`).join('')}</ul>`;
+        } else {
+          output.textContent = "✅ No obvious bypasses or tampering detected.";
         }
-        report();
-      }, 3000);
-
-      // 4. Optional fingerprinting
-      const getFingerprint = () => {
-        return {
-          userAgent: navigator.userAgent,
-          platform: navigator.platform,
-          plugins: navigator.plugins.length,
-          languages: navigator.languages
-        };
-      };
-
-      const report = () => {
-        const fingerprint = getFingerprint();
-        let result = suspicious
-          ? `<p class="warning">⚠️ Suspicious activity detected:</p><ul>${messages.map(m => `<li>${m}</li>`).join('')}</ul>`
-          : "✅ No obvious automation detected.";
-        
-        result += `<pre>${JSON.stringify(fingerprint, null, 2)}</pre>`;
-        status.innerHTML = result;
-
-        // Optionally, send to server:
-        // fetch('https://your-endpoint.com/report', {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify({ suspicious, messages, fingerprint })
-        // });
-      };
+      }, 100);
     })();
   </script>
 </body>
