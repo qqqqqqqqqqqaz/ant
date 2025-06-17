@@ -16,33 +16,39 @@
       const output = document.getElementById('output');
       let issues = [];
 
-      // --- 1. Fast Interaction Detection ---
-      let start = performance.now();
+      // --- 1. Delay the fast-timing check to reduce false positives ---
       setTimeout(() => {
-        let elapsed = performance.now() - start;
-        if (elapsed < 5) {
-          issues.push("⚠️ Script may be speeding up execution with fast flags.");
+        const start = performance.now();
+        setTimeout(() => {
+          const elapsed = performance.now() - start;
+          if (elapsed < 1) {
+            issues.push("⚠️ Script may be speeding up execution with fast flags.");
+          }
+        }, 0);
+      }, 300); // Wait 300ms after load
+
+      // --- 2. Check for function tampering ---
+      const checkNative = (fn, name) => {
+        try {
+          const str = fn.toString();
+          if (!str.includes('[native code]')) {
+            issues.push(`⚠️ ${name} appears to be overridden.`);
+          }
+        } catch (e) {
+          issues.push(`⚠️ Unable to verify integrity of ${name}.`);
         }
-      }, 0);
+      };
 
-      // --- 2. Script Tampering Check ---
-      const originalSetTimeout = window.setTimeout.toString();
-      if (!originalSetTimeout.includes('[native code]')) {
-        issues.push("⚠️ setTimeout has been modified (script injection?).");
-      }
+      checkNative(window.setTimeout, 'setTimeout');
+      if (window.fetch) checkNative(window.fetch, 'fetch');
 
-      const originalFetch = window.fetch?.toString?.() || "";
-      if (originalFetch && !originalFetch.includes('[native code]')) {
-        issues.push("⚠️ fetch() appears to be overridden (possible hook).");
-      }
-
-      // --- 3. Inline Script Detection (via DOM) ---
+      // --- 3. Detect inline script injection ---
       const scripts = document.querySelectorAll("script:not([src])");
       if (scripts.length > 1) {
         issues.push("⚠️ Extra inline scripts detected (possible injection).");
       }
 
-      // --- 4. DevTools Detection (Simple) ---
+      // --- 4. Simple DevTools detection (debugger delay) ---
       const detectDevTools = () => {
         const before = new Date();
         debugger;
@@ -53,14 +59,14 @@
       };
       detectDevTools();
 
-      // --- 5. Report Results ---
+      // --- 5. Final report after short delay ---
       setTimeout(() => {
         if (issues.length > 0) {
           output.innerHTML = `<div class="alert">Suspicious Activity Detected:</div><ul>${issues.map(i => `<li>${i}</li>`).join('')}</ul>`;
         } else {
           output.textContent = "✅ No obvious bypasses or tampering detected.";
         }
-      }, 100);
+      }, 500);
     })();
   </script>
 </body>
